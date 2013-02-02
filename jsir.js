@@ -22,15 +22,15 @@ var jsir = (function () {
     }
 
     var newApply = (function () {
-        function tempCtor() {};
+        function Class() {};
 
         return function(ctor, args) {       
             // Reference prototype
-            tempCtor.prototype = ctor.prototype;
+            Class.prototype = ctor.prototype;
 
             // No constructor provided to prevent double
             // constructor firing on the real object
-            var instance = new tempCtor();
+            var instance = new Class();
 
             ctor.apply(instance, args);
 
@@ -55,8 +55,8 @@ var jsir = (function () {
         return newApply(this, arguments);
     }
 
-    function definePrototype(func, proto) {
-        var funcProto = func.prototype = new Base();
+    function definePrototype(func, proto, extendBase) {
+        var funcProto = func.prototype = new (extendBase || Base);
         funcProto.constructor = func;
         func.create = createHelper;
 
@@ -68,9 +68,35 @@ var jsir = (function () {
     }
 
     /**
+     * Module
+     */
+    function Module() {
+        this.useStrict = true;
+    }
+
+    definePrototype(Module, {
+        dump: function () {
+            var out = "";
+
+            if (this.useStrict) {
+                out += "\"use strict\"\n\n";
+            }
+
+            for (var i = 0, l = this.length; i < l; i++) {
+                out += this[i].dump();
+            }
+
+            return out;
+        }
+    }, Array);
+
+    /**
      * EmptyStatement
      */
-    function EmptyStatement() {}
+    function EmptyStatement(module) {
+        if (module) module.push(this);
+    }
+
     definePrototype(EmptyStatement, {
         isEmpty: function () {
             return true;
@@ -83,10 +109,12 @@ var jsir = (function () {
     /**
      * BooleanLiteral
      */
-    function BooleanLiteral(value) {
+    function BooleanLiteral(value, module) {
         assert(toString.call(value) === "[object Boolean]", "BooleanLiteral requires a boolean value.");
 
         this.value = value;
+
+        if (module) module.push(this);
     }
 
     definePrototype(BooleanLiteral, {
@@ -98,8 +126,10 @@ var jsir = (function () {
     /**
      * BlockStatement
      */
-    function BlockStatement(statements) {
+    function BlockStatement(statements, module) {
         this.statements = statements || null;
+
+        if (module) module.push(this);
     }
 
     definePrototype(BlockStatement, {
@@ -125,12 +155,14 @@ var jsir = (function () {
     /**
      * ConditionalStatement
      */
-    function ConditionalStatement(conditionExpression, thenStatement, elseStatement) {
+    function ConditionalStatement(conditionExpression, thenStatement, elseStatement, module) {
         assert(conditionExpression instanceof Base, "ConditionalStatement requires valid condition.");
 
         this.conditionExpression = conditionExpression;
         this.thenStatement = thenStatement || EmptyStatement.create();
         this.elseStatement = elseStatement;
+
+        if (module) module.push(this);
     }
 
     definePrototype(ConditionalStatement, {
@@ -182,9 +214,11 @@ var jsir = (function () {
     /**
      * SwitchStatement
      */
-    function SwitchStatement(expression, members) {
+    function SwitchStatement(expression, members, module) {
         this.expression = expression;
         this.members = members;
+
+        if (module) module.push(this);
     }
 
     definePrototype(SwitchStatement, {
@@ -234,8 +268,10 @@ var jsir = (function () {
     /**
      * VariableStatement
      */
-    function VariableStatement(vars) {
+    function VariableStatement(vars, module) {
         this.vars = vars;
+
+        if (module) module.push(this);
     }
 
     definePrototype(VariableStatement, {
@@ -262,10 +298,12 @@ var jsir = (function () {
     /**
      * Function
      */
-    function Function(name, params, bodyBlock) {
+    function Function(name, params, bodyBlock, module) {
         this.name = name || "";
         this.params = params || [];
         this.bodyBlock = bodyBlock || BlockStatement.create();
+
+        if (module) module.push(this);
     }
 
     definePrototype(Function, {
@@ -280,6 +318,7 @@ var jsir = (function () {
     });
 
     return {
+        Module: Module,
         EmptyStatement: EmptyStatement,
         BooleanLiteral: BooleanLiteral,
         BlockStatement: BlockStatement,
