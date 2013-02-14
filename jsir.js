@@ -1,4 +1,19 @@
-var jsir = (function () {
+
+(function (root) {
+
+    /**
+     * @namespace
+     */
+    var jsir = {};
+
+    if (typeof exports !== "undefined") {
+        if (typeof module !== "undefined" && module.exports) {
+            exports = module.exports = jsir;
+        }
+        exports.jsir = jsir;
+    } else {
+        root.jsir = jsir;
+    }
 
     var toString = Object.prototype.toString;
 
@@ -21,74 +36,127 @@ var jsir = (function () {
         return indention + str.split("\n").join("\n" + indention);
     }
 
-    var newApply = (function () {
-        function Class() {};
+    /**
+     * Internal helper for easier prototype inheritance and declaration.
+     */ 
+    var Class = jsir.Class = (function () {
+        var classIsInitializing = false;
 
-        return function(ctor, args) {       
-            // Reference prototype
-            Class.prototype = ctor.prototype;
+        function Class() {}
 
-            // No constructor provided to prevent double
-            // constructor firing on the real object
-            var instance = new Class();
+        Class.create = function (instanceMembers) {
+            var superClass = this;
 
-            ctor.apply(instance, args);
+            // Instantiate a copy of the inherited class but don't call the
+            // constructor!
+            classIsInitializing = true;
+            var prototype = new superClass() || {};
+            classIsInitializing = false;
 
-            return instance;
+            // Pass a reference to the super class implementations
+            prototype.__super = superClass.prototype;
+            // Be sure they have atleast a default constructor!
+            prototype.__construct = instanceMembers.__construct || function () {};
+
+            for (var key in instanceMembers) {
+                if (instanceMembers.hasOwnProperty(key)) {
+                    prototype[key] = instanceMembers[key];
+                }
+            }
+
+            // Constructor wrapper
+            function Class() {
+                // Allows us to create an instance of superClass above without
+                // actually calling the class's real `constructor`
+                if (classIsInitializing) return;
+
+                if (this.__construct) {
+                    this.__construct.apply(this, arguments);
+                }
+            }
+
+            // Assign our members to this copy of Class
+            Class.prototype = prototype;
+            Class.prototype.constructor = Class;
+
+            Class.extend = extendClass;
+
+            return Class;
+        };
+
+        function extendClass(instanceMembers) {
+            return Class.create.call(this, instanceMembers);
         }
+
+        return Class;
+
     })();
 
-    function Base() {}
-    Base.prototype.dump = function () {
-        return "";
-    };
+    /**
+     * Base class that all elements inherit a common interface from.
+     */
+    var Element = Class.create({
 
-    Base.prototype.becomeParentOf = function (child) {
-        if (child !== null) {
-            child.parent = this;
-        }
+        toString: function () {
+            return "";
+        },
 
-        return child;
-    };
-
-    function createHelper() {
-        return newApply(this, arguments);
-    }
-
-    function definePrototype(func, proto, extendBase) {
-        var funcProto = func.prototype = new (extendBase || Base);
-        funcProto.constructor = func;
-        func.create = createHelper;
-
-        for (var key in proto) {
-            if (proto.hasOwnProperty(key)) {
-                funcProto[key] = proto[key];
+        becomeParentOf: function (child) {
+            if (child !== null) {
+                child.setParent(this);
             }
+        },
+
+        setParent: function (parent) {
+            this.parent = parent;
+        },
+
+        getParent: function () {
+            return this.parent;
         }
-    }
+
+    });
 
     /**
-     * Module
+     * Typically used as a 1-to-1 IR container for an output file.
      */
-    function Module() {
-        this.useStrict = true;
-    }
+    var Module = Element.extend({
 
-    definePrototype(Module, {
-        dump: function () {
+        useStrict: true,
+        elements: null,
+
+        /**
+         * @constructs
+         */
+        __construct: function () {
+            this.elements = [];
+        },
+
+        push: function (el1, el2, el3) {
+            if (el2 !== undefined || el3 !== undefined) {
+                this.elements.push.apply(elements, arguments);
+            } else {
+                this.elements.push(el1);
+            }
+        },
+
+        toString: function () {
             var out = "";
 
             if (this.useStrict) {
                 out += "\"use strict\"\n\n";
             }
 
-            for (var i = 0, l = this.length; i < l; i++) {
-                out += this[i].dump();
+            var elements = this.elements;
+
+            for (var i = 0, l = elements.length; i < l; i++) {
+                out += elements[i].toString();
             }
 
             return out;
         }
-    }, Array);
+
+    });
 
     /**
      * EmptyStatement
@@ -101,7 +169,7 @@ var jsir = (function () {
         isEmpty: function () {
             return true;
         },
-        dump: function () {
+        toString: function () {
             return ";";
         }
     });
@@ -118,7 +186,7 @@ var jsir = (function () {
     }
 
     definePrototype(BooleanLiteral, {
-        dump: function () {
+        toString: function () {
             return this.value.toString();
         }
     });
@@ -133,7 +201,7 @@ var jsir = (function () {
     }
 
     definePrototype(BlockStatement, {
-        dump: function () {
+        toString: function () {
             var statements = this.statements;
             var out = "";
 
@@ -142,7 +210,7 @@ var jsir = (function () {
             if (statements !== null) {
                 out += "\n";
                 for (var i = 0, l = statements.length; i < l; i++) {
-                    out += indent(statements[i].dump(), 4) + "\n";
+                    out += indent(statements[i].toString(), 4) + "\n";
                 }
             }
 
@@ -166,16 +234,16 @@ var jsir = (function () {
     }
 
     definePrototype(ConditionalStatement, {
-        dump: function () {
+        toString: function () {
             var out = "";
             out += "if (";
-            out += this.conditionExpression.dump();
+            out += this.conditionExpression.toString();
             out += ") "
-            out += this.thenStatement.dump();
+            out += this.thenStatement.toString();
 
             if (this.elseStatement) {
                 out += "else ";
-                out += this.elseStatement.dump();
+                out += this.elseStatement.toString();
             }
 
             return out;
@@ -191,7 +259,7 @@ var jsir = (function () {
     }
 
     definePrototype(SwitchMember, {
-        dump: function () {
+        toString: function () {
             var labels = this.labels;
             var statements = this.statements;
             var out = "";
@@ -200,12 +268,12 @@ var jsir = (function () {
                 out += "case " + labels[i] + ":\n";
             }
 
-            var dumpedStatements = [];
+            var toStringedStatements = [];
             for (var j = 0, k = statements.length; j < k; j++) {
-                dumpedStatements.push(indent(statements[j].dump(), 4));
+                toStringedStatements.push(indent(statements[j].toString(), 4));
             }
 
-            out += dumpedStatements.join("\n");
+            out += toStringedStatements.join("\n");
 
             return out;
         }
@@ -222,16 +290,16 @@ var jsir = (function () {
     }
 
     definePrototype(SwitchStatement, {
-        dump: function () {
+        toString: function () {
             var members = this.members;
             var out = "";
 
-            out += "switch (" + this.expression.dump() + ") {";
+            out += "switch (" + this.expression.toString() + ") {";
 
             if (members) {
                 out += "\n";
                 for (var i = 0, l = members.length; i < l; i++) {
-                    out += indent(members[i].dump(), 4) + "\n";
+                    out += indent(members[i].toString(), 4) + "\n";
                 }
             }
 
@@ -250,7 +318,7 @@ var jsir = (function () {
     }
 
     definePrototype(Variable, {
-        dump: function () {
+        toString: function () {
             var vars = this.vars;
             var out = "";
 
@@ -258,7 +326,7 @@ var jsir = (function () {
 
             if (this.initializer) {
                 out += " = ";
-                out += this.initializer.dump();
+                out += this.initializer.toString();
             }
 
             return out;
@@ -275,7 +343,7 @@ var jsir = (function () {
     }
 
     definePrototype(VariableStatement, {
-        dump: function () {
+        toString: function () {
             var vars = this.vars;
             var out = "";
 
@@ -284,7 +352,7 @@ var jsir = (function () {
             var expandedVars = [];
 
             for (var i = 0, l = vars.length; i < l; i++) {
-                expandedVars.push(vars[i].dump());
+                expandedVars.push(vars[i].toString());
             }
 
             out += expandedVars.join(",\n    ");
@@ -307,27 +375,14 @@ var jsir = (function () {
     }
 
     definePrototype(Function, {
-        dump: function () {
+        toString: function () {
             var out = "";
 
             out += "function " + this.name + "(" + this.params.join(", ") + ") ";
-            out += this.bodyBlock.dump();
+            out += this.bodyBlock.toString();
 
             return out;
         }
     });
 
-    return {
-        Module: Module,
-        EmptyStatement: EmptyStatement,
-        BooleanLiteral: BooleanLiteral,
-        BlockStatement: BlockStatement,
-        Variable: Variable,
-        VariableStatement: VariableStatement,
-        SwitchMember: SwitchMember,
-        ConditionalStatement: ConditionalStatement,
-        SwitchStatement: SwitchStatement,
-        Function: Function
-    }; 
-
-})();
+})(this);
