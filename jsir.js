@@ -28,6 +28,28 @@
 
     }
 
+    var newApply = (function () {
+        // Locally overriding the built-in Object temporarily allows us (in most
+        // browsers) to maintain the original constructor's name when it is printed
+        // in the console. Otherwise, what ever we name this, that name will be used
+        // instead.
+        var Object = function () {};
+     
+        return function(ctor, args) {       
+            // Reference prototype
+            Object.prototype = ctor.prototype;
+            Object.prototype.constructor = ctor;
+     
+            // Original constructor not provided to prevent double
+            // firing on the real object
+            var instance = new Object();
+     
+            ctor.apply(instance, args);
+     
+            return instance;
+        }
+    })();
+
     function assert(condition, msg) {
         if (!isBoolean(condition)) throw new Error("asset() requires Boolean type condition");
         if (condition === false) throw new Error(msg);
@@ -92,12 +114,17 @@
             Class.prototype.constructor = Class;
 
             Class.extend = extendClass;
+            Class.create = createClass;
 
             return Class;
         };
 
         function extendClass(instanceMembers) {
             return Class.create.call(this, instanceMembers);
+        }
+
+        function createClass() {
+            return newApply(this, arguments);
         }
 
         return Class;
@@ -107,7 +134,7 @@
     /**
      * Base class that all elements inherit a common interface from.
      */
-    var Element = Class.create({
+    jsir.Element = Class.create({
 
         toString: function () {
             return "";
@@ -132,16 +159,19 @@
     /**
      * Typically used as a 1-to-1 IR container for an output file.
      */
-    var Module = Element.extend({
+    jsir.Module = jsir.Element.extend({
 
-        useStrict: true,
+        useStrict: false,
         elements: null,
 
         /**
          * @constructs
          */
-        __construct: function () {
-            this.elements = [];
+        __construct: function (options) {
+            options = options || {};
+
+            this.elements = options.elements || [];
+            this.useStrict = options.useStrict || this.useStrict;
         },
 
         push: function () {
@@ -171,14 +201,19 @@
     });
 
     /**
+     * Expression base class
+     */
+    jsir.Expression = jsir.Element.extend({});
+
+    /**
      * Statement base class
      */
-    var Statement = Element.extend({});
+    jsir.Statement = jsir.Expression.extend({});
 
     /**
      * EmptyStatement
      */
-    var EmptyStatement = Statement.extend({
+    var EmptyStatement = jsir.Statement.extend({
 
         __construct: function (module) {
             if (module) module.push(this);
@@ -193,7 +228,7 @@
     /**
      * BooleanLiteral
      */
-    var BooleanLiteral = Statement.extend({
+    jsir.BooleanLiteral = jsir.Expression.extend({
 
         __construct: function (value, module) {
             assert(isBoolean(value), "BooleanLiteral requires a boolean value as the first argument.");
@@ -212,7 +247,7 @@
     /**
      * BlockStatement
      */
-    var BlockStatement = Statement.extend({
+    jsir.BlockStatement = jsir.Statement.extend({
 
         __construct: function (statements, module) {
             this.statements = statements || null;
@@ -243,13 +278,11 @@
     /**
      * ConditionalStatement
      */
-    var ConditionalStatement = Statement.extend({
+    jsir.ConditionalStatement = jsir.Statement.extend({
 
         __construct: function (conditionExpression, thenStatement, elseStatement, module) {
-            assert(conditionExpression instanceof Base, "ConditionalStatement requires valid condition.");
-
             this.conditionExpression = conditionExpression;
-            this.thenStatement = thenStatement || EmptyStatement.create();
+            this.thenStatement = thenStatement || new jsir.EmptyStatement();
             this.elseStatement = elseStatement;
 
             if (module) module.push(this);
@@ -275,7 +308,7 @@
     /**
      * SwitchMember
      */
-    var SwitchMember = Element.extend({
+    jsir.SwitchMember = jsir.Element.extend({
 
         __construct: function (labels, statements) {
             this.labels = labels;
@@ -306,7 +339,7 @@
     /**
      * SwitchStatement
      */
-    var SwitchStatement = Statement.extend({
+    jsir.SwitchStatement = jsir.Statement.extend({
 
         __construct: function (expression, members, module) {
             this.expression = expression;
@@ -338,7 +371,7 @@
     /**
      * Variable
      */
-    var Variable = Element.extend({
+    jsir.Variable = jsir.Element.extend({
 
         __construct: function (name, initializer) {
             this.name = name;
@@ -364,7 +397,7 @@
     /**
      * VariableStatement
      */
-    var VariableStatement = Statement.extend({
+    jsir.VariableStatement = jsir.Statement.extend({
 
         __construct: function (vars, module) {
             this.vars = vars;
@@ -396,12 +429,12 @@
     /**
      * Function
      */
-    var Function = Element.extend({
+    jsir.Function = jsir.Element.extend({
 
         __construct: function (name, params, bodyBlock, module) {
             this.name = name || "";
             this.params = params || [];
-            this.bodyBlock = bodyBlock || BlockStatement.create();
+            this.bodyBlock = bodyBlock || new jsir.BlockStatement();
 
             if (module) module.push(this);
         },

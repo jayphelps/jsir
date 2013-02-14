@@ -1,7 +1,7 @@
 <script src="jsir.js"></script>
 
 <script>
-/*
+
 var module = jsir.Module.create();
 
 var conditional = jsir.ConditionalStatement.create(jsir.BooleanLiteral.create(true), jsir.BlockStatement.create());
@@ -9,8 +9,8 @@ var switcher = jsir.SwitchStatement.create(jsir.BooleanLiteral.create(true), [js
 var varstatement = jsir.VariableStatement.create([jsir.Variable.create("foo"), jsir.Variable.create("bar", jsir.BooleanLiteral.create(false))]);
 jsir.Function.create('bob', ['first', 'second'], jsir.BlockStatement.create([varstatement, conditional, switcher]), module);
 
-var output = module.dump();
+var output = module.toString();
 eval(output);
 console.log(output);   
-*/
+
 </script>
