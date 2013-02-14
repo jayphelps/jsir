@@ -17,8 +17,13 @@
 
     var toString = Object.prototype.toString;
 
+    function isBoolean(value) {
+        return toString.call(value) === "[object Boolean]";
+    }
+
     function assert(condition, msg) {
-        if (!condition) throw new Error(msg);
+        if (!isBoolean(condition)) throw new Error("asset() requires Boolean type condition");
+        if (condition === false) throw new Error(msg);
     }
 
     function getSpaces(count) {
@@ -132,12 +137,12 @@
             this.elements = [];
         },
 
-        push: function (el1, el2, el3) {
-            if (el2 !== undefined || el3 !== undefined) {
-                this.elements.push.apply(elements, arguments);
-            } else {
-                this.elements.push(el1);
-            }
+        push: function () {
+            return this.elements.push.apply(this.elements, arguments);
+        },
+
+        pop: function () {
+            return this.elements.pop();
         },
 
         toString: function () {
@@ -159,48 +164,55 @@
     });
 
     /**
+     * Statement base class
+     */
+    var Statement = Element.extend({});
+
+    /**
      * EmptyStatement
      */
-    function EmptyStatement(module) {
-        if (module) module.push(this);
-    }
+    var EmptyStatement = Statement.extend({
 
-    definePrototype(EmptyStatement, {
-        isEmpty: function () {
-            return true;
+        __construct: function (module) {
+            if (module) module.push(this);
         },
+
         toString: function () {
             return ";";
         }
+
     });
 
     /**
      * BooleanLiteral
      */
-    function BooleanLiteral(value, module) {
-        assert(toString.call(value) === "[object Boolean]", "BooleanLiteral requires a boolean value.");
+    var BooleanLiteral = Statement.extend({
 
-        this.value = value;
+        __construct: function (value, module) {
+            assert(isBoolean(value), "BooleanLiteral requires a boolean value as the first argument.");
 
-        if (module) module.push(this);
-    }
+            this.value = value;
 
-    definePrototype(BooleanLiteral, {
+            if (module) module.push(this);
+        },
+
         toString: function () {
             return this.value.toString();
         }
+
     });
 
     /**
      * BlockStatement
      */
-    function BlockStatement(statements, module) {
-        this.statements = statements || null;
+    var BlockStatement = Statement.extend({
 
-        if (module) module.push(this);
-    }
+        __construct: function (statements, module) {
+            this.statements = statements || null;
 
-    definePrototype(BlockStatement, {
+            if (module) module.push(this);
+        },
+
         toString: function () {
             var statements = this.statements;
             var out = "";
@@ -218,22 +230,24 @@
 
             return out;
         }
+
     });
 
     /**
      * ConditionalStatement
      */
-    function ConditionalStatement(conditionExpression, thenStatement, elseStatement, module) {
-        assert(conditionExpression instanceof Base, "ConditionalStatement requires valid condition.");
+    var ConditionalStatement = Statement.extend({
 
-        this.conditionExpression = conditionExpression;
-        this.thenStatement = thenStatement || EmptyStatement.create();
-        this.elseStatement = elseStatement;
+        __construct: function (conditionExpression, thenStatement, elseStatement, module) {
+            assert(conditionExpression instanceof Base, "ConditionalStatement requires valid condition.");
 
-        if (module) module.push(this);
-    }
+            this.conditionExpression = conditionExpression;
+            this.thenStatement = thenStatement || EmptyStatement.create();
+            this.elseStatement = elseStatement;
 
-    definePrototype(ConditionalStatement, {
+            if (module) module.push(this);
+        },
+
         toString: function () {
             var out = "";
             out += "if (";
@@ -248,17 +262,19 @@
 
             return out;
         }
+
     });
 
     /**
      * SwitchMember
      */
-    function SwitchMember(labels, statements) {
-        this.labels = labels;
-        this.statements = statements;
-    }
+    var SwitchMember = Element.extend({
 
-    definePrototype(SwitchMember, {
+        __construct: function (labels, statements) {
+            this.labels = labels;
+            this.statements = statements;
+        },
+
         toString: function () {
             var labels = this.labels;
             var statements = this.statements;
@@ -277,19 +293,21 @@
 
             return out;
         }
+
     });
 
     /**
      * SwitchStatement
      */
-    function SwitchStatement(expression, members, module) {
-        this.expression = expression;
-        this.members = members;
+    var SwitchStatement = Statement.extend({
 
-        if (module) module.push(this);
-    }
+        __construct: function (expression, members, module) {
+            this.expression = expression;
+            this.members = members;
 
-    definePrototype(SwitchStatement, {
+            if (module) module.push(this);
+        },
+
         toString: function () {
             var members = this.members;
             var out = "";
@@ -307,17 +325,19 @@
 
             return out;
         }
+
     });
 
     /**
      * Variable
      */
-    function Variable(name, initializer) {
-        this.name = name;
-        this.initializer = initializer || null;
-    }
+    var Variable = Element.extend({
 
-    definePrototype(Variable, {
+        __construct: function (name, initializer) {
+            this.name = name;
+            this.initializer = initializer || null;
+        },
+
         toString: function () {
             var vars = this.vars;
             var out = "";
@@ -331,18 +351,20 @@
 
             return out;
         }
+
     });
 
     /**
      * VariableStatement
      */
-    function VariableStatement(vars, module) {
-        this.vars = vars;
+    var VariableStatement = Statement.extend({
 
-        if (module) module.push(this);
-    }
+        __construct: function (vars, module) {
+            this.vars = vars;
 
-    definePrototype(VariableStatement, {
+            if (module) module.push(this);
+        },
+
         toString: function () {
             var vars = this.vars;
             var out = "";
@@ -361,20 +383,22 @@
 
             return out;
         }
+
     });
 
     /**
      * Function
      */
-    function Function(name, params, bodyBlock, module) {
-        this.name = name || "";
-        this.params = params || [];
-        this.bodyBlock = bodyBlock || BlockStatement.create();
+    var Function = Element.extend({
 
-        if (module) module.push(this);
-    }
+        __construct: function (name, params, bodyBlock, module) {
+            this.name = name || "";
+            this.params = params || [];
+            this.bodyBlock = bodyBlock || BlockStatement.create();
 
-    definePrototype(Function, {
+            if (module) module.push(this);
+        },
+
         toString: function () {
             var out = "";
 
@@ -383,6 +407,7 @@
 
             return out;
         }
+        
     });
 
 })(this);
