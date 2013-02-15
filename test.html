@@ -2,12 +2,12 @@
 
 <script>
 
-var module = jsir.Module.create();
+var module = new jsir.Module();
 
-var conditional = jsir.ConditionalStatement.create(jsir.BooleanLiteral.create(true), jsir.BlockStatement.create());
-var switcher = jsir.SwitchStatement.create(jsir.BooleanLiteral.create(true), [jsir.SwitchMember.create(['foo', 'bar'], [conditional])]);
-var varstatement = jsir.VariableStatement.create([jsir.Variable.create("foo"), jsir.Variable.create("bar", jsir.BooleanLiteral.create(false))]);
-jsir.Function.create('bob', ['first', 'second'], jsir.BlockStatement.create([varstatement, conditional, switcher]), module);
+var conditional = new jsir.ConditionalStatement(new jsir.BooleanLiteral(true), new jsir.BlockStatement());
+var switcher = new jsir.SwitchStatement(new jsir.BooleanLiteral(true), [new jsir.SwitchMember(['foo', 'bar'], [conditional])]);
+var varstatement = new jsir.VariableStatement([new jsir.Variable("foo"), new jsir.Variable("bar", new jsir.BooleanLiteral(false))]);
+var func = new jsir.Function('bob', ['first', 'second'], new jsir.BlockStatement([varstatement, conditional, switcher]), module);
 
 var output = module.toString();
 eval(output);

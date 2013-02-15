@@ -1,5 +1,7 @@
 
 (function (root) {
+    // Yeah...I'm paranoid.
+    var undefined = void 0;
 
     /**
      * @namespace
@@ -16,9 +18,26 @@
     }
 
     var toString = Object.prototype.toString;
+    var nativeIndexOf = Array.prototype.indexOf;
 
     function isBoolean(value) {
         return toString.call(value) === "[object Boolean]";
+    }
+
+    function indexOf(array, item) {
+        // If true, they didn't pass a useful array-like object.
+        if (array == null || array.length === undefined) return -1;
+
+        if (nativeIndexOf && array.indexOf === nativeIndexOf) {
+            return array.indexOf(item);
+        }
+
+        for (var i = 0, l = array.length; i < l; i++) {
+            if (array[i] === item) return i;
+        }
+
+        // Exhausted all routes, it's not in there.
+        return -1;
     }
 
     // Credit: Mathias Bynens
@@ -174,8 +193,23 @@
             this.useStrict = options.useStrict || this.useStrict;
         },
 
-        push: function () {
-            return this.elements.push.apply(this.elements, arguments);
+        getElements: function () {
+            return this.elements;
+        },
+
+        getLength: function () {
+            return this.elements.length;
+        },
+
+        getSize: function () {
+            return this.getLength();
+        },
+
+        push: function (el) {
+            assert(el instanceof jsir.Element, "jsir.Module#push only accepts jsir.Elements");
+            assert(indexOf(this.elements, el) === -1, "jsir.Module#push element pushed that is already in module.");
+
+            return this.elements.push(el);
         },
 
         pop: function () {
